@@ -11,6 +11,7 @@ Undetected Counter-Strike 2 browser-based radar cheat
 ## Requirements
 - [Node.js](https://nodejs.org/en/download)
 - [Visual Studio Community](https://visualstudio.microsoft.com/vs/community/)
+- [vcpkg](https://vcpkg.io/en/)
 
 ## Usage
 - In `webapp`, run `npm install` to install dependencies
