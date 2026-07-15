@@ -27,22 +27,28 @@ jobs:
         run: |
           git clone https://github.com/microsoft/vcpkg C:/vcpkg --depth=1
           C:/vcpkg/bootstrap-vcpkg.bat -disableMetrics
-          echo "VCPKG_ROOT=C:/vcpkg" >> $env:GITHUB_ENV
 
       - name: Install dependencies via vcpkg
         working-directory: usermode
         run: |
           C:/vcpkg/vcpkg install --triplet x64-windows-static
 
-      # INCLUDE und LIB sind Standard-Umgebungsvariablen die CL.exe automatisch liest.
-      # So werden die vcpkg-Pfade zu den bestehenden .vcxproj-Pfaden hinzugefügt,
-      # ohne sie zu überschreiben.
-      - name: Add vcpkg paths to compiler environment
+      # Directory.Build.props wird von MSBuild automatisch geladen –
+      # vor allen anderen Imports im .vcxproj.
+      # Damit landen die vcpkg-Pfade sicher in IncludePath und LibraryPath.
+      - name: Inject vcpkg paths via Directory.Build.props
+        working-directory: usermode
         run: |
-          $vcpkg_inc = "C:/vcpkg/installed/x64-windows-static/include"
-          $vcpkg_lib = "C:/vcpkg/installed/x64-windows-static/lib"
-          echo "INCLUDE=$vcpkg_inc;$env:INCLUDE" >> $env:GITHUB_ENV
-          echo "LIB=$vcpkg_lib;$env:LIB"         >> $env:GITHUB_ENV
+          $inc = "C:/vcpkg/installed/x64-windows-static/include"
+          $lib = "C:/vcpkg/installed/x64-windows-static/lib"
+          @"
+          <Project>
+            <PropertyGroup>
+              <IncludePath>$inc;`$(IncludePath)</IncludePath>
+              <LibraryPath>$lib;`$(LibraryPath)</LibraryPath>
+            </PropertyGroup>
+          </Project>
+          "@ | Set-Content Directory.Build.props
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
