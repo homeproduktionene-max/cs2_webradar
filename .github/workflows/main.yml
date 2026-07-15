@@ -33,25 +33,30 @@ jobs:
         run: |
           C:/vcpkg/vcpkg install --triplet x64-windows-static
 
-      # Directory.Build.props wird von MSBuild automatisch geladen –
-      # vor allen anderen Imports im .vcxproj.
-      # Damit landen die vcpkg-Pfade sicher in IncludePath und LibraryPath.
-      - name: Inject vcpkg paths via Directory.Build.props
-        working-directory: usermode
+      # DEBUG: Prüfen ob vcpkg die Dateien wirklich installiert hat
+      - name: Debug – check installed files
         run: |
-          $inc = "C:/vcpkg/installed/x64-windows-static/include"
-          $lib = "C:/vcpkg/installed/x64-windows-static/lib"
-          @"
-          <Project>
-            <PropertyGroup>
-              <IncludePath>$inc;`$(IncludePath)</IncludePath>
-              <LibraryPath>$lib;`$(LibraryPath)</LibraryPath>
-            </PropertyGroup>
-          </Project>
-          "@ | Set-Content Directory.Build.props
+          Write-Host "=== vcpkg installed dir ==="
+          if (Test-Path "C:/vcpkg/installed/x64-windows-static/include") {
+            Get-ChildItem "C:/vcpkg/installed/x64-windows-static/include" | Select-Object Name
+          } else {
+            Write-Host "FEHLER: Verzeichnis existiert nicht!"
+            Get-ChildItem "C:/vcpkg/installed" -ErrorAction SilentlyContinue | Select-Object Name
+          }
+          Write-Host "=== nlohmann suchen ==="
+          Get-ChildItem "C:/vcpkg" -Recurse -Filter "json.hpp" -ErrorAction SilentlyContinue | Select-Object FullName
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
+
+      # NUR zum Debuggen: direkt mit cl.exe testen ob der Include-Pfad wirkt
+      - name: Debug – test cl.exe with explicit /I
+        working-directory: usermode
+        run: |
+          $inc = "C:/vcpkg/installed/x64-windows-static/include"
+          Write-Host "Trying explicit /I flag..."
+          & "C:/Program Files/Microsoft Visual Studio/18/Enterprise/VC/Tools/MSVC/14.51.36231/bin/HostX86/x64/CL.exe" `
+            /nologo /c /I"$inc" /std:c++latest src/pch.cpp 2>&1 | Write-Host
 
       - name: Build (release|x64)
         working-directory: usermode
@@ -59,6 +64,7 @@ jobs:
           msbuild cs2_webradar.sln `
             /p:Configuration=release `
             /p:Platform=x64 `
+            /p:IncludePath="C:/vcpkg/installed/x64-windows-static/include;$(IncludePath)" `
             /m
 
       - name: Upload artifact
@@ -68,4 +74,5 @@ jobs:
           path: |
             usermode/release/*.dll
             usermode/x64/release/*.dll
+          if-no-files-found: warn
           if-no-files-found: warn
