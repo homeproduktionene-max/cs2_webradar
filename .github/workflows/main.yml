@@ -34,8 +34,7 @@ jobs:
       - name: Install dependencies via vcpkg
         working-directory: usermode
         run: |
-          C:/vcpkg/vcpkg install --triplet x64-windows-static `
-            nlohmann-json ixwebsocket
+          C:/vcpkg/vcpkg install --triplet x64-windows-static
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
