@@ -75,4 +75,3 @@ jobs:
             usermode/release/*.dll
             usermode/x64/release/*.dll
           if-no-files-found: warn
-          if-no-files-found: warn
