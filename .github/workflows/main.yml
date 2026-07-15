@@ -18,9 +18,7 @@ jobs:
       - name: Cache vcpkg
         uses: actions/cache@v4
         with:
-          path: |
-            C:/vcpkg/installed
-            C:/vcpkg/packages
+          path: C:/vcpkg/installed
           key: vcpkg-${{ hashFiles('usermode/vcpkg.json', 'usermode/vcpkg-configuration.json') }}
 
       - name: Setup vcpkg
@@ -28,35 +26,31 @@ jobs:
           git clone https://github.com/microsoft/vcpkg C:/vcpkg --depth=1
           C:/vcpkg/bootstrap-vcpkg.bat -disableMetrics
 
+      # --x-install-root legt die Pakete nach C:/vcpkg/installed/ ab (Standard-Verhalten
+      # wenn vcpkg integrate install gemacht wurde). Ohne diesen Flag landen sie nur
+      # in packages/, was MSBuild nicht automatisch findet.
       - name: Install dependencies via vcpkg
         working-directory: usermode
         run: |
-          C:/vcpkg/vcpkg install --triplet x64-windows-static
-
-      # DEBUG: Prüfen ob vcpkg die Dateien wirklich installiert hat
-      - name: Debug – check installed files
-        run: |
-          Write-Host "=== vcpkg installed dir ==="
-          if (Test-Path "C:/vcpkg/installed/x64-windows-static/include") {
-            Get-ChildItem "C:/vcpkg/installed/x64-windows-static/include" | Select-Object Name
-          } else {
-            Write-Host "FEHLER: Verzeichnis existiert nicht!"
-            Get-ChildItem "C:/vcpkg/installed" -ErrorAction SilentlyContinue | Select-Object Name
-          }
-          Write-Host "=== nlohmann suchen ==="
-          Get-ChildItem "C:/vcpkg" -Recurse -Filter "json.hpp" -ErrorAction SilentlyContinue | Select-Object FullName
+          C:/vcpkg/vcpkg install --triplet x64-windows-static `
+            --x-install-root=C:/vcpkg/installed
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      # NUR zum Debuggen: direkt mit cl.exe testen ob der Include-Pfad wirkt
-      - name: Debug – test cl.exe with explicit /I
+      - name: Inject vcpkg paths via Directory.Build.props
         working-directory: usermode
         run: |
           $inc = "C:/vcpkg/installed/x64-windows-static/include"
-          Write-Host "Trying explicit /I flag..."
-          & "C:/Program Files/Microsoft Visual Studio/18/Enterprise/VC/Tools/MSVC/14.51.36231/bin/HostX86/x64/CL.exe" `
-            /nologo /c /I"$inc" /std:c++latest src/pch.cpp 2>&1 | Write-Host
+          $lib = "C:/vcpkg/installed/x64-windows-static/lib"
+          Set-Content Directory.Build.props @"
+          <Project>
+            <PropertyGroup>
+              <IncludePath>$inc;`$(IncludePath)</IncludePath>
+              <LibraryPath>$lib;`$(LibraryPath)</LibraryPath>
+            </PropertyGroup>
+          </Project>
+          "@
 
       - name: Build (release|x64)
         working-directory: usermode
@@ -64,7 +58,6 @@ jobs:
           msbuild cs2_webradar.sln `
             /p:Configuration=release `
             /p:Platform=x64 `
-            /p:IncludePath="C:/vcpkg/installed/x64-windows-static/include;$(IncludePath)" `
             /m
 
       - name: Upload artifact
