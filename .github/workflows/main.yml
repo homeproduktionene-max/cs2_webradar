@@ -61,8 +61,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cs2_webradar-dll
+          name: cs2_webradar-build
           path: |
-            usermode/release/*.dll
-            usermode/x64/release/*.dll
-          if-no-files-found: warn
+            usermode/release/usermode.exe
+            usermode/release/usermode.pdb
+          if-no-files-found: error
