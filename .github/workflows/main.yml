@@ -5,7 +5,7 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:   # manuell per Klick startbar
+  workflow_dispatch:
 
 jobs:
   build:
@@ -15,14 +15,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # vcpkg cachen – spart mehrere Minuten beim zweiten Run
       - name: Cache vcpkg
         uses: actions/cache@v4
         with:
           path: |
             C:/vcpkg/installed
             C:/vcpkg/packages
-            usermode/vcpkg_installed
           key: vcpkg-${{ hashFiles('usermode/vcpkg.json', 'usermode/vcpkg-configuration.json') }}
 
       - name: Setup vcpkg
@@ -36,6 +34,16 @@ jobs:
         run: |
           C:/vcpkg/vcpkg install --triplet x64-windows-static
 
+      # INCLUDE und LIB sind Standard-Umgebungsvariablen die CL.exe automatisch liest.
+      # So werden die vcpkg-Pfade zu den bestehenden .vcxproj-Pfaden hinzugefügt,
+      # ohne sie zu überschreiben.
+      - name: Add vcpkg paths to compiler environment
+        run: |
+          $vcpkg_inc = "C:/vcpkg/installed/x64-windows-static/include"
+          $vcpkg_lib = "C:/vcpkg/installed/x64-windows-static/lib"
+          echo "INCLUDE=$vcpkg_inc;$env:INCLUDE" >> $env:GITHUB_ENV
+          echo "LIB=$vcpkg_lib;$env:LIB"         >> $env:GITHUB_ENV
+
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
@@ -45,11 +53,6 @@ jobs:
           msbuild cs2_webradar.sln `
             /p:Configuration=release `
             /p:Platform=x64 `
-            /p:VcpkgEnabled=true `
-            /p:VcpkgRoot="C:/vcpkg" `
-            /p:VcpkgTriplet=x64-windows-static `
-            "/p:AdditionalIncludeDirectories=C:/vcpkg/installed/x64-windows-static/include" `
-            "/p:AdditionalLibraryDirectories=C:/vcpkg/installed/x64-windows-static/lib" `
             /m
 
       - name: Upload artifact
