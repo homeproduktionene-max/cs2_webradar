@@ -1,5 +1,4 @@
 name: Build cs2_webradar
-
 on:
   push:
     branches: [ main, master ]
@@ -10,7 +9,6 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,10 +23,8 @@ jobs:
         run: |
           git clone https://github.com/microsoft/vcpkg C:/vcpkg --depth=1
           C:/vcpkg/bootstrap-vcpkg.bat -disableMetrics
+          C:/vcpkg/vcpkg integrate install
 
-      # --x-install-root legt die Pakete nach C:/vcpkg/installed/ ab (Standard-Verhalten
-      # wenn vcpkg integrate install gemacht wurde). Ohne diesen Flag landen sie nur
-      # in packages/, was MSBuild nicht automatisch findet.
       - name: Install dependencies via vcpkg
         working-directory: usermode
         run: |
@@ -38,17 +34,19 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      - name: Inject vcpkg paths via Directory.Build.props
+      - name: Write Directory.Build.props
         working-directory: usermode
         run: |
-          $inc = "C:/vcpkg/installed/x64-windows-static/include"
-          $lib = "C:/vcpkg/installed/x64-windows-static/lib"
           Set-Content Directory.Build.props @"
           <Project>
             <PropertyGroup>
-              <IncludePath>$inc;`$(IncludePath)</IncludePath>
-              <LibraryPath>$lib;`$(LibraryPath)</LibraryPath>
+              <IncludePath>C:/vcpkg/installed/x64-windows-static/include;`$(IncludePath)</IncludePath>
             </PropertyGroup>
+            <ItemDefinitionGroup>
+              <Link>
+                <AdditionalLibraryDirectories>C:/vcpkg/installed/x64-windows-static/lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+              </Link>
+            </ItemDefinitionGroup>
           </Project>
           "@
 
