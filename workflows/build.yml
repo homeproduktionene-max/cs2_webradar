@@ -1,0 +1,58 @@
+name: Build cs2_webradar
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:   # manuell per Klick startbar
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # vcpkg cachen – spart mehrere Minuten beim zweiten Run
+      - name: Cache vcpkg
+        uses: actions/cache@v4
+        with:
+          path: |
+            C:/vcpkg/installed
+            C:/vcpkg/packages
+            usermode/vcpkg_installed
+          key: vcpkg-${{ hashFiles('usermode/vcpkg.json', 'usermode/vcpkg-configuration.json') }}
+
+      - name: Setup vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg C:/vcpkg --depth=1
+          C:/vcpkg/bootstrap-vcpkg.bat -disableMetrics
+          echo "VCPKG_ROOT=C:/vcpkg" >> $env:GITHUB_ENV
+
+      - name: Install dependencies via vcpkg
+        working-directory: usermode
+        run: |
+          C:/vcpkg/vcpkg install --triplet x64-windows-static `
+            nlohmann-json ixwebsocket
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build (release|x64)
+        working-directory: usermode
+        run: |
+          msbuild cs2_webradar.sln `
+            /p:Configuration=release `
+            /p:Platform=x64 `
+            /p:VcpkgEnabled=true `
+            /p:VcpkgRoot="C:/vcpkg" `
+            /m
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cs2_webradar-dll
+          path: usermode/x64/release/*.dll
+          if-no-files-found: warn
